@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export PATH="/usr/local/bin:/opt/homebrew/bin:/Users/sergevatel/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
 SESSION="${SYMPHONY_JUMBO_TMUX_SESSION:-symphony-jumbo}"
 URL="${1:-${SYMPHONY_JUMBO_STATE_URL:-http://127.0.0.1:4567/api/v1/state}}"
 LOG="${SYMPHONY_JUMBO_HEARTBEAT_LOG:-/tmp/symphony-jumbo-heartbeat.jsonl}"

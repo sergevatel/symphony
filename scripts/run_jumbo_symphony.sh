@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export PATH="/usr/local/bin:/opt/homebrew/bin:/Users/sergevatel/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
 SESSION="${SYMPHONY_JUMBO_TMUX_SESSION:-symphony-jumbo}"
 SYMPHONY_ROOT="/Users/sergevatel/Claude-Projects/symphony"
 ELIXIR_ROOT="${SYMPHONY_ROOT}/elixir"
