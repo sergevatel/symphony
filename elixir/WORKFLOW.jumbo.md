@@ -2,7 +2,7 @@
 tracker:
   kind: linear
   api_key: $LINEAR_API_KEY
-  project_slug: "jumbo-playing-cards-unity-asset-store-july-1-a0caf567b0d6"
+  project_slug: "jumbo-playing-cards-unity-asset-store-full-premium-sep-18-a0caf567b0d6"
   required_labels:
     - symphony-ready
   active_states:
