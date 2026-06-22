@@ -89,12 +89,14 @@ Continuation context:
 ## Operating Contract
 
 - Work only inside this Symphony-created workspace.
-- Use Unity `2022.3.62f2` only.
+- Treat `docs/jumbo-card-ui-asset-package-prd.md` as the product contract when present.
+- Use local Unity `2022.3.62f2` for standard validation unless a Unity 6 editor is explicitly installed/available for compatibility validation.
 - Do not open, close, or alter other Unity projects or Unity instances.
 - Do not change UnityMCP transport setup. The SSOT is the existing HTTP hub at `http://127.0.0.1:8080/mcp` when Unity is intentionally used.
 - Never promote or package anything from `Assets/JumboPlayingCardsPremium/Rejected`.
 - Preserve production order: tables first, card backs second, card fronts/decks last.
 - Treat premium AAA commercial quality as a release gate, not a marketing adjective.
+- Support Unity versions from 2022 onward, including Unity 6. Use Unity 2022.3.62f2 as the minimum local validation floor, and record Unity 6 validation as a release gate when the issue touches compatibility, demos, scripts, prefabs, or packaging.
 - For visual assets, run an adversarial visual review before promoting anything.
 - For Unity work, prefer batchmode/import validation against this project only.
 - Keep marketplace submission and final ship/no-ship approval as release-owner gates.
