@@ -2,11 +2,19 @@
 set -euo pipefail
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:/Users/sergevatel/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export HOME="${HOME:-/Users/sergevatel}"
+export USER="${USER:-sergevatel}"
+
+if [ -z "${DOPPLER_TOKEN:-}" ]; then
+  DOPPLER_TOKEN="$(doppler configure get token --plain 2>/dev/null || true)"
+  export DOPPLER_TOKEN
+fi
 
 STATE_URL="${SYMPHONY_JUMBO_STATE_URL:-http://127.0.0.1:4567/api/v1/state}"
 REFRESH_URL="${SYMPHONY_JUMBO_REFRESH_URL:-http://127.0.0.1:4567/api/v1/refresh}"
 PROJECT_SLUG="${SYMPHONY_JUMBO_PROJECT_SLUG:-jumbo-playing-cards-unity-asset-store-july-1-a0caf567b0d6}"
 LOG="${SYMPHONY_JUMBO_STARVATION_LOG:-/tmp/symphony-jumbo-starvation-recovery.jsonl}"
+COOLDOWN_SECONDS="${SYMPHONY_JUMBO_STARVATION_COOLDOWN_SECONDS:-21600}"
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 state_json="$(curl -fsS --max-time 15 "${STATE_URL}")"
@@ -20,14 +28,16 @@ if [ "${running_count}" != "0" ] || [ "${retrying_count}" != "0" ]; then
   exit 0
 fi
 
-doppler run --project xcite --config dev -- python3 - "${PROJECT_SLUG}" "${REFRESH_URL}" "${LOG}" "${TS}" <<'PY'
+doppler run --project xcite --config dev -- python3 - "${PROJECT_SLUG}" "${REFRESH_URL}" "${LOG}" "${TS}" "${COOLDOWN_SECONDS}" <<'PY'
+from datetime import datetime, timezone
 import json
 import os
 import re
 import subprocess
 import sys
 
-project_slug, refresh_url, log_path, ts = sys.argv[1:5]
+project_slug, refresh_url, log_path, ts, cooldown_seconds_raw = sys.argv[1:6]
+cooldown_seconds = int(cooldown_seconds_raw)
 endpoint = "https://api.linear.app/graphql"
 api_key = os.environ["LINEAR_API_KEY"]
 
@@ -160,7 +170,49 @@ candidates = [
     and not open_blockers(issue)
     and not release_owner_gate(issue)
 ]
-candidates.sort(key=lambda issue: (issue.get("priority") or 99, issue_number(issue), issue["identifier"]))
+
+now = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+recent_promotions = {}
+if os.path.exists(log_path):
+    with open(log_path, "r", encoding="utf-8") as fh:
+        for line in fh:
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("status") != "promoted_review_to_todo" or not event.get("issue") or not event.get("ts"):
+                continue
+            try:
+                promoted_at = datetime.fromisoformat(event["ts"].replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            recent_promotions[event["issue"]] = promoted_at
+
+
+def promotion_age_seconds(issue):
+    promoted_at = recent_promotions.get(issue["identifier"])
+    if promoted_at is None:
+        return None
+    return (now - promoted_at).total_seconds()
+
+
+eligible = [
+    issue
+    for issue in candidates
+    if promotion_age_seconds(issue) is None or promotion_age_seconds(issue) >= cooldown_seconds
+]
+
+if eligible:
+    candidates = eligible
+
+candidates.sort(
+    key=lambda issue: (
+        issue.get("priority") or 99,
+        promotion_age_seconds(issue) is not None,
+        issue_number(issue),
+        issue["identifier"],
+    )
+)
 
 if not candidates:
     emit(
@@ -170,6 +222,7 @@ if not candidates:
             "in_review": [
                 issue["identifier"] for issue in unfinished_tasks if issue["state"]["name"] == "In Review"
             ],
+            "cooldown_seconds": cooldown_seconds,
         }
     )
     sys.exit(0)
