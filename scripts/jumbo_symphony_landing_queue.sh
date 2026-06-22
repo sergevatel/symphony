@@ -95,7 +95,7 @@ for workspace in "${WORKSPACE_ROOT}"/CARD-*; do
   fi
 
   dirty_count="$(git -C "${workspace}" status --porcelain --untracked-files=all \
-    | { grep -Ev '^\?\? (\.symphony|Library|Library\.|Logs|Logs\.|Temp|Temp\.|UserSettings)(/|\.|$)' || true; } \
+    | { grep -Ev '^\?\? "?(\.symphony|Library|Library\.|Logs|Logs\.|Temp|Temp\.|UserSettings)(/|\.|$)' || true; } \
     | wc -l | tr -d ' ')"
   if [ "${dirty_count}" = "0" ]; then
     continue
@@ -120,7 +120,7 @@ PY
 
   git -C "${workspace}" add -u -- .
   git -C "${workspace}" ls-files -o --exclude-standard \
-    | grep -Ev '^(\.symphony|Library|Library\.|Logs|Logs\.|Temp|Temp\.|UserSettings)(/|\.|$)' \
+    | grep -Ev '^"?(\.symphony|Library|Library\.|Logs|Logs\.|Temp|Temp\.|UserSettings)(/|\.|$)' \
     | tr '\n' '\0' \
     | xargs -0 git -C "${workspace}" add -- 2>/dev/null || true
   if git -C "${workspace}" diff --cached --quiet; then
