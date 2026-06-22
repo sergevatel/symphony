@@ -41,6 +41,29 @@ hooks:
       printf 'branch=%s\n' "$(git branch --show-current 2>/dev/null || true)"
       printf 'head=%s\n' "$(git rev-parse --short HEAD 2>/dev/null || true)"
     } >> .symphony/run-stamps.log
+    if [ -n "$(git status --porcelain --untracked-files=all | grep -Ev '^\?\? (\.symphony|Library|Library\.|Logs|Logs\.|Temp|Temp\.|UserSettings)(/|\.|$)' || true)" ]; then
+      issue_id="$(basename "$PWD")"
+      branch="$(git branch --show-current 2>/dev/null || true)"
+      git add -u -- .
+      git ls-files -o --exclude-standard \
+        | grep -Ev '^(\.symphony|Library|Library\.|Logs|Logs\.|Temp|Temp\.|UserSettings)(/|\.|$)' \
+        | tr '\n' '\0' \
+        | xargs -0 git add -- 2>/dev/null || true
+      if ! git diff --cached --quiet; then
+        git commit -m "Land ${issue_id} Symphony workspace output" -m "This commit captures file changes produced by the Symphony issue agent so autonomous work is not stranded in an isolated workspace. The ticket branch remains separate from the OmniDeck baseline branch until integration review.
+
+Constraint: Symphony workspaces are isolated from the baseline repo.
+Rejected: Leave workspace changes uncommitted | It hides progress from git and risks losing completed work.
+Confidence: medium
+Scope-risk: narrow
+Directive: Merge ticket branches through the landing/review path; do not treat Linear Done alone as baseline integration.
+Tested: Symphony after_run git status detection.
+Not-tested: Full Unity validation from hook context."
+        if [ -n "$branch" ]; then
+          git push -u origin "$branch" || true
+        fi
+      fi
+    fi
 agent:
   max_concurrent_agents: 3
   max_turns: 30

@@ -12,7 +12,7 @@ fi
 
 STATE_URL="${SYMPHONY_JUMBO_STATE_URL:-http://127.0.0.1:4567/api/v1/state}"
 REFRESH_URL="${SYMPHONY_JUMBO_REFRESH_URL:-http://127.0.0.1:4567/api/v1/refresh}"
-PROJECT_SLUG="${SYMPHONY_JUMBO_PROJECT_SLUG:-jumbo-playing-cards-unity-asset-store-july-1-a0caf567b0d6}"
+PROJECT_SLUG="${SYMPHONY_JUMBO_PROJECT_SLUG:-omnideck-sdk-premium-accessible-card-framework-sep-18-a0caf567b0d6}"
 LOG="${SYMPHONY_JUMBO_STARVATION_LOG:-/tmp/symphony-jumbo-starvation-recovery.jsonl}"
 COOLDOWN_SECONDS="${SYMPHONY_JUMBO_STARVATION_COOLDOWN_SECONDS:-21600}"
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -77,7 +77,7 @@ def gql(query, variables):
 
 issues_query = """
 query Issues($slug:String!) {
-  issues(first: 80, filter: {project: {slugId: {eq: $slug}}}) {
+  issues(first: 250, filter: {project: {slugId: {eq: $slug}}}) {
     nodes {
       id
       identifier
@@ -134,7 +134,7 @@ def open_blockers(issue):
 
 
 def issue_number(issue):
-    match = re.search(r"\[JPC-(\d{3})\]", issue["title"])
+    match = re.search(r"\[(?:JPC|ODK|ODK-SDL)-(\d{3})\]", issue["title"])
     return int(match.group(1)) if match else 999
 
 
