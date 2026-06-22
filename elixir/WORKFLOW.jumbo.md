@@ -2,7 +2,7 @@
 tracker:
   kind: linear
   api_key: $LINEAR_API_KEY
-  project_slug: "jumbo-playing-cards-unity-asset-store-full-premium-sep-18-a0caf567b0d6"
+  project_slug: "omnideck-sdk-premium-accessible-card-framework-sep-18-a0caf567b0d6"
   required_labels:
     - symphony-ready
   active_states:
@@ -62,7 +62,10 @@ server:
   port: 4567
 ---
 
-You are executing the Jumbo Playing Cards Unity Asset Store SDLC through Symphony.
+You are executing the OmniDeck SDK Unity Asset Store SDLC through Symphony.
+
+Internal repo codename: Jumbo Playing Cards
+Official commercial package name: OmniDeck SDK: Premium Accessible Card Framework
 
 Linear issue: `{{ issue.identifier }}`
 
@@ -89,12 +92,15 @@ Continuation context:
 ## Operating Contract
 
 - Work only inside this Symphony-created workspace.
-- Treat `docs/jumbo-card-ui-asset-package-prd.md` as the product contract when present.
+- Treat `docs/jumbo-card-ui-asset-package-prd.md` as the definitive SSOT product and SDLC contract when present.
+- Use OmniDeck SDK naming for public/package-facing work. Treat "Jumbo Playing Cards" as an internal historical codename only.
+- Do not introduce "Casino Royale" into production paths, namespaces, Unity metadata, screenshots, docs, or marketing copy.
+- Implement the OmniDeck SDLC plan in the PRD: package foundation, tables, card backs, card fronts/decks, SDK runtime/tooling, demos, docs, QA/compliance, and release evidence.
 - Use local Unity `2022.3.62f2` for standard validation unless a Unity 6 editor is explicitly installed/available for compatibility validation.
 - Do not open, close, or alter other Unity projects or Unity instances.
 - Do not change UnityMCP transport setup. The SSOT is the existing HTTP hub at `http://127.0.0.1:8080/mcp` when Unity is intentionally used.
 - Never promote or package anything from `Assets/JumboPlayingCardsPremium/Rejected`.
-- Preserve production order: tables first, card backs second, card fronts/decks last.
+- Preserve production order unless Linear dependencies say otherwise: OmniDeck naming/package foundation first, tables second, card backs third, card fronts/decks fourth, then SDK runtime/tooling, demos, docs, QA/compliance, and release evidence.
 - Treat premium AAA commercial quality as a release gate, not a marketing adjective.
 - Support Unity versions from 2022 onward, including Unity 6. Use Unity 2022.3.62f2 as the minimum local validation floor, and record Unity 6 validation as a release gate when the issue touches compatibility, demos, scripts, prefabs, or packaging.
 - For visual assets, run an adversarial visual review before promoting anything.
