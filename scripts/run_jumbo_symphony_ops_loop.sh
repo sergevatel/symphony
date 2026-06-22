@@ -27,7 +27,7 @@ while true; do
   ./scripts/jumbo_symphony_landing_queue.sh || true
   ./scripts/jumbo_symphony_starvation_recovery.sh || true
   curl -sS http://127.0.0.1:4567/api/v1/state -o /tmp/symphony-state.json || true
-  cd "${GAME_ROOT}" && doppler run --project xcite --config dev -- python3 tools/generate_omnideck_sdlc_dashboard.py --symphony-state /tmp/symphony-state.json || true
+  cd "${GAME_ROOT}" && doppler run --project xcite --config dev -- python3 tools/generate_omnideck_sdlc_dashboard.py --symphony-state /tmp/symphony-state.json --output-dir "${LOG_ROOT}/omnideck-sdlc-dashboard" || true
   cd "${SYMPHONY_ROOT}"
   sleep "${INTERVAL_SECONDS}"
 done
