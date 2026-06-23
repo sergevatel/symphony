@@ -69,7 +69,7 @@ agent:
   max_turns: 30
   max_retry_backoff_ms: 300000
   max_concurrent_agents_by_state:
-    Todo: 2
+    Todo: 3
     In Progress: 3
 codex:
   command: codex --config shell_environment_policy.inherit=all --config 'model="gpt-5.4"' --config model_reasoning_effort=high app-server

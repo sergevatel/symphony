@@ -15,20 +15,23 @@ REFRESH_URL="${SYMPHONY_JUMBO_REFRESH_URL:-http://127.0.0.1:4567/api/v1/refresh}
 PROJECT_SLUG="${SYMPHONY_JUMBO_PROJECT_SLUG:-omnideck-sdk-premium-accessible-card-framework-sep-18-a0caf567b0d6}"
 LOG="${SYMPHONY_JUMBO_STARVATION_LOG:-/tmp/symphony-jumbo-starvation-recovery.jsonl}"
 COOLDOWN_SECONDS="${SYMPHONY_JUMBO_STARVATION_COOLDOWN_SECONDS:-21600}"
+TARGET_RUNNING="${SYMPHONY_JUMBO_TARGET_RUNNING:-3}"
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 state_json="$(curl -fsS --max-time 15 "${STATE_URL}")"
 running_count="$(printf '%s' "${state_json}" | jq -r '.counts.running // 0')"
 retrying_count="$(printf '%s' "${state_json}" | jq -r '.counts.retrying // 0')"
+active_issue_ids_json="$(printf '%s' "${state_json}" | jq -c '[.running[]?.issue_identifier, .retrying[]?.issue_identifier] | map(select(. != null))')"
+active_count="$((running_count + retrying_count))"
 
-if [ "${running_count}" != "0" ] || [ "${retrying_count}" != "0" ]; then
-  printf '{"ts":"%s","status":"not_starved","running":%s,"retrying":%s}\n' \
-    "${TS}" "${running_count}" "${retrying_count}" >> "${LOG}"
+if [ "${active_count}" -ge "${TARGET_RUNNING}" ]; then
+  printf '{"ts":"%s","status":"capacity_saturated","running":%s,"retrying":%s,"target_running":%s}\n' \
+    "${TS}" "${running_count}" "${retrying_count}" "${TARGET_RUNNING}" >> "${LOG}"
   tail -n 1 "${LOG}"
   exit 0
 fi
 
-doppler run --project xcite --config dev -- python3 - "${PROJECT_SLUG}" "${REFRESH_URL}" "${LOG}" "${TS}" "${COOLDOWN_SECONDS}" <<'PY'
+doppler run --project xcite --config dev -- python3 - "${PROJECT_SLUG}" "${REFRESH_URL}" "${LOG}" "${TS}" "${COOLDOWN_SECONDS}" "${running_count}" "${retrying_count}" "${TARGET_RUNNING}" "${active_issue_ids_json}" <<'PY'
 from datetime import datetime, timezone
 import json
 import os
@@ -36,8 +39,14 @@ import re
 import subprocess
 import sys
 
-project_slug, refresh_url, log_path, ts, cooldown_seconds_raw = sys.argv[1:6]
+project_slug, refresh_url, log_path, ts, cooldown_seconds_raw, running_count_raw, retrying_count_raw, target_running_raw, active_issue_ids_raw = sys.argv[1:10]
 cooldown_seconds = int(cooldown_seconds_raw)
+running_count = int(running_count_raw)
+retrying_count = int(retrying_count_raw)
+target_running = int(target_running_raw)
+active_count = running_count + retrying_count
+open_slots = max(0, target_running - active_count)
+active_issue_ids = set(json.loads(active_issue_ids_raw or "[]"))
 endpoint = "https://api.linear.app/graphql"
 api_key = os.environ["LINEAR_API_KEY"]
 
@@ -111,7 +120,14 @@ unfinished_tasks = [
     if "[JPC-EPIC-" not in issue["title"] and issue["state"]["name"] not in terminal
 ]
 if not unfinished_tasks:
-    emit({"status": "complete_no_unfinished_tasks"})
+    emit(
+        {
+            "status": "complete_no_unfinished_tasks",
+            "running": running_count,
+            "retrying": retrying_count,
+            "target_running": target_running,
+        }
+    )
     sys.exit(0)
 
 blocked_by = {identifier: set() for identifier in issues}
@@ -152,15 +168,24 @@ unblocked_todo = [
     for issue in unfinished_tasks
     if issue["state"]["name"] == "Todo" and ready(issue) and not open_blockers(issue)
 ]
+queued_unblocked_todo = [
+    issue for issue in unblocked_todo if issue["identifier"] not in active_issue_ids
+]
 if unblocked_todo:
     subprocess.run(["curl", "-fsS", "-X", "POST", "--max-time", "15", refresh_url], check=False)
-    emit(
-        {
-            "status": "refresh_existing_unblocked_todo",
-            "candidates": [issue["identifier"] for issue in unblocked_todo],
-        }
-    )
-    sys.exit(0)
+    if len(queued_unblocked_todo) >= open_slots:
+        emit(
+            {
+                "status": "refresh_existing_unblocked_todo",
+                "candidates": [issue["identifier"] for issue in queued_unblocked_todo],
+                "already_running": sorted(active_issue_ids),
+                "running": running_count,
+                "retrying": retrying_count,
+                "target_running": target_running,
+                "open_slots": open_slots,
+            }
+        )
+        sys.exit(0)
 
 candidates = [
     issue
@@ -223,30 +248,41 @@ if not candidates:
                 issue["identifier"] for issue in unfinished_tasks if issue["state"]["name"] == "In Review"
             ],
             "cooldown_seconds": cooldown_seconds,
+            "existing_unblocked_todo": [issue["identifier"] for issue in queued_unblocked_todo],
+            "already_running": sorted(active_issue_ids),
+            "running": running_count,
+            "retrying": retrying_count,
+            "target_running": target_running,
+            "open_slots": open_slots,
         }
     )
     sys.exit(0)
 
-issue = candidates[0]
-comment = f"""## Starvation Recovery
+promotion_slots = max(0, open_slots - len(queued_unblocked_todo))
+if promotion_slots == 0 and not queued_unblocked_todo:
+    promotion_slots = 1
+promoted = candidates[:promotion_slots]
+
+for issue in promoted:
+    comment = f"""## Starvation Recovery
 
 Triggered: `{ts}`
 
-Symphony was idle with no running/retrying agents and the commercial package is not complete. This issue is `In Review`, `symphony-ready`, and has no open non-terminal blockers, so it is being re-promoted to `Todo` for another autonomous evidence/mining pass.
+Symphony had open agent capacity (`{running_count}` running, `{retrying_count}` retrying, target `{target_running}`) and the commercial package is not complete. This issue is `In Review`, `symphony-ready`, and has no open non-terminal blockers, so it is being re-promoted to `Todo` for another autonomous evidence/mining pass.
 
 This does not approve marketplace submission, rights clearance, physical-device proof, or the final ship/no-ship decision. If the issue is truly blocked by a release-owner gate, the agent must return it to `In Review` with a concrete unblock brief.
 """
 
-gql(
-    """
+    gql(
+        """
 mutation AddComment($issueId:String!, $body:String!) {
   commentCreate(input: {issueId: $issueId, body: $body}) { success }
 }
 """,
-    {"issueId": issue["id"], "body": comment},
-)
-gql(
-    """
+        {"issueId": issue["id"], "body": comment},
+    )
+    gql(
+        """
 mutation Promote($id:String!, $stateId:String!) {
   issueUpdate(id: $id, input: {stateId: $stateId}) {
     success
@@ -254,17 +290,25 @@ mutation Promote($id:String!, $stateId:String!) {
   }
 }
 """,
-    {"id": issue["id"], "stateId": todo_state_id},
-)
+        {"id": issue["id"], "stateId": todo_state_id},
+    )
+
 subprocess.run(["curl", "-fsS", "-X", "POST", "--max-time", "15", refresh_url], check=False)
 
 emit(
     {
-        "status": "promoted_review_to_todo",
-        "issue": issue["identifier"],
-        "title": issue["title"],
-        "priority": issue.get("priority"),
+        "status": "promoted_review_to_todo_batch",
+        "promoted": [
+            {"issue": issue["identifier"], "title": issue["title"], "priority": issue.get("priority")}
+            for issue in promoted
+        ],
+        "existing_unblocked_todo": [issue["identifier"] for issue in queued_unblocked_todo],
+        "already_running": sorted(active_issue_ids),
         "unfinished": len(unfinished_tasks),
+        "running": running_count,
+        "retrying": retrying_count,
+        "target_running": target_running,
+        "open_slots": open_slots,
     }
 )
 PY

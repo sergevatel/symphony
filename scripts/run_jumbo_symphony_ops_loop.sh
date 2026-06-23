@@ -7,7 +7,7 @@ SESSION="${SYMPHONY_JUMBO_OPS_TMUX_SESSION:-symphony-jumbo-ops}"
 SYMPHONY_ROOT="/Users/sergevatel/Claude-Projects/symphony"
 GAME_ROOT="/Users/sergevatel/Documents/Jumbo Playing Cards"
 LOG_ROOT="${SYMPHONY_JUMBO_OPS_LOG_ROOT:-${SYMPHONY_ROOT}/log/jumbo}"
-INTERVAL_SECONDS="${SYMPHONY_JUMBO_OPS_INTERVAL_SECONDS:-300}"
+INTERVAL_SECONDS="${SYMPHONY_JUMBO_OPS_INTERVAL_SECONDS:-60}"
 
 if tmux has-session -t "${SESSION}" 2>/dev/null; then
   echo "Symphony Jumbo ops loop already running: ${SESSION}"
