@@ -160,10 +160,17 @@ Move the issue to `Done` only when all are true:
 - Relevant file paths and proof artifacts are recorded in the workpad.
 - Visual or Unity changes have fresh evidence.
 - Rejected assets remain excluded from production paths.
+- Completion evidence is artifact-backed. The workpad must include at least one of:
+  - A pushed ticket branch named `codex/jumbo-${issue_identifier}` with the commit hash.
+  - A baseline commit hash already present in `codex/jumbo-sdlc-baseline-20260621`.
+  - An explicit no-op/verification-only closeout explaining why no file artifact was required.
+- Do not move an issue to `Done` when the only evidence is a Linear checklist or prose summary.
+- If file changes exist but the ticket branch was not pushed, keep the issue in `In Review` and record the missing branch push as the blocker.
 
 Move the issue to `In Review` when blocked by:
 
 - Missing source files or auth.
+- Missing pushed branch or missing baseline integration evidence.
 - Required human rights/source-chain approval.
 - Required physical-device proof.
 - Irreversible release or marketplace submission decision.
