@@ -394,6 +394,12 @@ defmodule SymphonyElixir.Orchestrator do
   end
 
   @doc false
+  @spec release_orphaned_active_claims_for_test([Issue.t()], term()) :: term()
+  def release_orphaned_active_claims_for_test(issues, %State{} = state) when is_list(issues) do
+    release_orphaned_active_claims(issues, state, active_state_set(), terminal_state_set())
+  end
+
+  @doc false
   @spec select_worker_host_for_test(term(), String.t() | nil) :: String.t() | nil | :no_worker_capacity
   def select_worker_host_for_test(%State{} = state, preferred_worker_host) do
     select_worker_host(state, preferred_worker_host)
@@ -769,6 +775,7 @@ defmodule SymphonyElixir.Orchestrator do
   defp choose_issues(issues, state) do
     active_states = active_state_set()
     terminal_states = terminal_state_set()
+    state = release_orphaned_active_claims(issues, state, active_states, terminal_states)
 
     issues
     |> sort_issues_for_dispatch()
@@ -789,6 +796,36 @@ defmodule SymphonyElixir.Orchestrator do
       _ ->
         {priority_rank(nil), issue_created_at_sort_key(nil), ""}
     end)
+  end
+
+  defp release_orphaned_active_claims(issues, %State{} = state, active_states, terminal_states)
+       when is_list(issues) do
+    Enum.reduce(issues, state, fn
+      %Issue{} = issue, state_acc ->
+        if orphaned_active_claim?(issue, state_acc, active_states, terminal_states) do
+          Logger.warning(
+            "Releasing orphaned active claim before dispatch: #{issue_context(issue)} state=#{issue.state}"
+          )
+
+          %{state_acc | claimed: MapSet.delete(state_acc.claimed, issue.id)}
+        else
+          state_acc
+        end
+
+      _issue, state_acc ->
+        state_acc
+    end)
+  end
+
+  defp release_orphaned_active_claims(_issues, state, _active_states, _terminal_states), do: state
+
+  defp orphaned_active_claim?(%Issue{} = issue, %State{} = state, active_states, terminal_states) do
+    candidate_issue?(issue, active_states, terminal_states) and
+      !todo_issue_blocked_by_non_terminal?(issue, terminal_states) and
+      MapSet.member?(state.claimed, issue.id) and
+      !Map.has_key?(state.running, issue.id) and
+      !Map.has_key?(state.blocked, issue.id) and
+      !Map.has_key?(state.retry_attempts, issue.id)
   end
 
   defp priority_rank(priority) when is_integer(priority) and priority in 1..4, do: priority

@@ -467,6 +467,69 @@ defmodule SymphonyElixir.CoreTest do
     assert updated_entry.issue.state == "In Progress"
   end
 
+  test "orphaned active claim is released so visible todo issue can dispatch again" do
+    write_workflow_file!(Workflow.workflow_file_path(), tracker_required_labels: ["symphony"])
+
+    issue_id = "issue-orphaned-claim"
+
+    issue = %Issue{
+      id: issue_id,
+      identifier: "MT-566",
+      title: "Visible active issue",
+      state: "Todo",
+      labels: ["symphony"]
+    }
+
+    state = %Orchestrator.State{
+      max_concurrent_agents: 1,
+      running: %{},
+      blocked: %{},
+      claimed: MapSet.new([issue_id]),
+      retry_attempts: %{}
+    }
+
+    refute Orchestrator.should_dispatch_issue_for_test(issue, state)
+
+    updated_state = Orchestrator.release_orphaned_active_claims_for_test([issue], state)
+
+    refute MapSet.member?(updated_state.claimed, issue_id)
+    assert Orchestrator.should_dispatch_issue_for_test(issue, updated_state)
+  end
+
+  test "orphaned active claim recovery preserves scheduled retries" do
+    write_workflow_file!(Workflow.workflow_file_path(), tracker_required_labels: ["symphony"])
+
+    issue_id = "issue-with-retry"
+
+    issue = %Issue{
+      id: issue_id,
+      identifier: "MT-567",
+      title: "Retrying active issue",
+      state: "Todo",
+      labels: ["symphony"]
+    }
+
+    state = %Orchestrator.State{
+      max_concurrent_agents: 1,
+      running: %{},
+      blocked: %{},
+      claimed: MapSet.new([issue_id]),
+      retry_attempts: %{
+        issue_id => %{
+          attempt: 1,
+          retry_token: make_ref(),
+          timer_ref: make_ref(),
+          due_at_ms: System.monotonic_time(:millisecond) + 1_000
+        }
+      }
+    }
+
+    updated_state = Orchestrator.release_orphaned_active_claims_for_test([issue], state)
+
+    assert MapSet.member?(updated_state.claimed, issue_id)
+    assert Map.has_key?(updated_state.retry_attempts, issue_id)
+  end
+
   test "reconcile stops running issue when it is reassigned away from this worker" do
     issue_id = "issue-reassigned"
 

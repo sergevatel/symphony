@@ -10,7 +10,7 @@ WORKFLOW="${ELIXIR_ROOT}/WORKFLOW.jumbo.md"
 LOG_ROOT="${SYMPHONY_JUMBO_LOG_ROOT:-${SYMPHONY_ROOT}/log/jumbo}"
 PORT="${SYMPHONY_JUMBO_PORT:-4567}"
 
-if tmux has-session -t "${SESSION}" 2>/dev/null; then
+if tmux has-session -t "=${SESSION}" 2>/dev/null; then
   echo "Symphony tmux session already running: ${SESSION}"
   exit 0
 fi

@@ -10,7 +10,7 @@ TMP_BODY="$(mktemp)"
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 tmux_status="missing"
-if tmux has-session -t "${SESSION}" 2>/dev/null; then
+if tmux has-session -t "=${SESSION}" 2>/dev/null; then
   tmux_status="running"
 fi
 
