@@ -13,7 +13,7 @@ tracker:
     - Canceled
     - Duplicate
 polling:
-  interval_ms: 15000
+  interval_ms: 30000
 workspace:
   root: /Users/sergevatel/Claude-Projects/symphony-workspaces/jumbo-playing-cards
 hooks:
@@ -50,15 +50,18 @@ hooks:
         | tr '\n' '\0' \
         | xargs -0 git add -- 2>/dev/null || true
       if ! git diff --cached --quiet; then
-        git commit -m "Land ${issue_id} Symphony workspace output" -m "This commit captures file changes produced by the Symphony issue agent so autonomous work is not stranded in an isolated workspace. The ticket branch remains separate from the OmniDeck baseline branch until integration review.
-
-Constraint: Symphony workspaces are isolated from the baseline repo.
-Rejected: Leave workspace changes uncommitted | It hides progress from git and risks losing completed work.
-Confidence: medium
-Scope-risk: narrow
-Directive: Merge ticket branches through the landing/review path; do not treat Linear Done alone as baseline integration.
-Tested: Symphony after_run git status detection.
-Not-tested: Full Unity validation from hook context."
+        {
+          printf '%s\n\n' "Land ${issue_id} Symphony workspace output"
+          printf '%s\n\n' "This commit captures file changes produced by the Symphony issue agent so autonomous work is not stranded in an isolated workspace. The ticket branch remains separate from the OmniDeck baseline branch until integration review."
+          printf "Constraint: Symphony workspaces are isolated from the baseline repo.\n"
+          printf "Rejected: Leave workspace changes uncommitted | It hides progress from git and risks losing completed work.\n"
+          printf "Confidence: medium\n"
+          printf "Scope-risk: narrow\n"
+          printf "Directive: Merge ticket branches through the landing/review path; do not treat Linear Done alone as baseline integration.\n"
+          printf "Tested: Symphony after_run git status detection.\n"
+          printf "Not-tested: Full Unity validation from hook context.\n"
+        } > /tmp/symphony-commit-msg
+        git commit -F /tmp/symphony-commit-msg
         if [ -n "$branch" ]; then
           git push -u origin "$branch" || true
         fi

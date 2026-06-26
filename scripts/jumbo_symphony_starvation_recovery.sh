@@ -35,6 +35,7 @@ doppler run --project xcite --config dev -- python3 - "${PROJECT_SLUG}" "${REFRE
 from datetime import datetime, timezone
 import json
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
@@ -49,6 +50,7 @@ open_slots = max(0, target_running - active_count)
 active_issue_ids = set(json.loads(active_issue_ids_raw or "[]"))
 endpoint = "https://api.linear.app/graphql"
 api_key = os.environ["LINEAR_API_KEY"]
+game_root = Path(os.environ.get("JUMBO_GAME_ROOT", "/Users/sergevatel/Documents/Jumbo Playing Cards"))
 
 
 def emit(payload):
@@ -163,11 +165,48 @@ def ready(issue):
     return "symphony-ready" in labels
 
 
+def labels(issue):
+    return {label["name"] for label in issue["labels"]["nodes"]}
+
+
+def front_deck_count():
+    decks_root = game_root / "Assets/JumboPlayingCardsPremium/Decks"
+    if not decks_root.exists():
+        return 0
+    count = 0
+    for deck in decks_root.iterdir():
+        fronts = deck / "Textures/CardFronts"
+        if fronts.is_dir() and len(list(fronts.glob("*.png"))) >= 52:
+            count += 1
+    return count
+
+
+def front_lane_issue(issue):
+    issue_labels = labels(issue)
+    title = issue["title"].lower()
+    return "component:card-fronts" in issue_labels or "front" in title
+
+
+def release_lane_issue(issue):
+    issue_labels = labels(issue)
+    title = issue["title"].lower()
+    return "sdlc:release" in issue_labels or "component:release" in issue_labels or "release:" in title
+
+
+front_count = front_deck_count()
+front_target = 20
+front_gap_open = front_count < front_target
+
+
 unblocked_todo = [
     issue
     for issue in unfinished_tasks
     if issue["state"]["name"] == "Todo" and ready(issue) and not open_blockers(issue)
 ]
+if front_gap_open:
+    front_todo = [issue for issue in unblocked_todo if front_lane_issue(issue) and not release_lane_issue(issue)]
+    if front_todo:
+        unblocked_todo = front_todo
 queued_unblocked_todo = [
     issue for issue in unblocked_todo if issue["identifier"] not in active_issue_ids
 ]
@@ -179,6 +218,9 @@ if unblocked_todo:
                 "status": "refresh_existing_unblocked_todo",
                 "candidates": [issue["identifier"] for issue in queued_unblocked_todo],
                 "already_running": sorted(active_issue_ids),
+                "front_decks": front_count,
+                "front_target": front_target,
+                "front_gap_open": front_gap_open,
                 "running": running_count,
                 "retrying": retrying_count,
                 "target_running": target_running,
@@ -195,6 +237,10 @@ candidates = [
     and not open_blockers(issue)
     and not release_owner_gate(issue)
 ]
+if front_gap_open:
+    front_candidates = [issue for issue in candidates if front_lane_issue(issue) and not release_lane_issue(issue)]
+    if front_candidates:
+        candidates = front_candidates
 
 now = datetime.fromisoformat(ts.replace("Z", "+00:00"))
 recent_promotions = {}
@@ -250,6 +296,9 @@ if not candidates:
             "cooldown_seconds": cooldown_seconds,
             "existing_unblocked_todo": [issue["identifier"] for issue in queued_unblocked_todo],
             "already_running": sorted(active_issue_ids),
+            "front_decks": front_count,
+            "front_target": front_target,
+            "front_gap_open": front_gap_open,
             "running": running_count,
             "retrying": retrying_count,
             "target_running": target_running,
@@ -304,6 +353,9 @@ emit(
         ],
         "existing_unblocked_todo": [issue["identifier"] for issue in queued_unblocked_todo],
         "already_running": sorted(active_issue_ids),
+        "front_decks": front_count,
+        "front_target": front_target,
+        "front_gap_open": front_gap_open,
         "unfinished": len(unfinished_tasks),
         "running": running_count,
         "retrying": retrying_count,
