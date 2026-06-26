@@ -239,8 +239,7 @@ candidates = [
 ]
 if front_gap_open:
     front_candidates = [issue for issue in candidates if front_lane_issue(issue) and not release_lane_issue(issue)]
-    if front_candidates:
-        candidates = front_candidates
+    candidates = front_candidates
 
 now = datetime.fromisoformat(ts.replace("Z", "+00:00"))
 recent_promotions = {}
@@ -286,6 +285,41 @@ candidates.sort(
 )
 
 if not candidates:
+    if front_gap_open:
+        subprocess.run(["curl", "-fsS", "-X", "POST", "--max-time", "15", refresh_url], check=False)
+        emit(
+            {
+                "status": "front_gap_open_no_front_review_promotions",
+                "unfinished": len(unfinished_tasks),
+                "in_review_front_candidates": [
+                    issue["identifier"]
+                    for issue in unfinished_tasks
+                    if issue["state"]["name"] == "In Review"
+                    and ready(issue)
+                    and not open_blockers(issue)
+                    and front_lane_issue(issue)
+                    and not release_lane_issue(issue)
+                ],
+                "blocked_release_promotions": [
+                    issue["identifier"]
+                    for issue in unfinished_tasks
+                    if issue["state"]["name"] == "In Review"
+                    and ready(issue)
+                    and not open_blockers(issue)
+                    and release_lane_issue(issue)
+                ],
+                "existing_unblocked_todo": [issue["identifier"] for issue in queued_unblocked_todo],
+                "already_running": sorted(active_issue_ids),
+                "front_decks": front_count,
+                "front_target": front_target,
+                "front_gap_open": front_gap_open,
+                "running": running_count,
+                "retrying": retrying_count,
+                "target_running": target_running,
+                "open_slots": open_slots,
+            }
+        )
+        sys.exit(0)
     emit(
         {
             "status": "starved_no_promotable_review_issue",
