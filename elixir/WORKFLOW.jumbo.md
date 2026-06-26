@@ -83,7 +83,7 @@ codex:
     networkAccess: true
   turn_timeout_ms: 3600000
   read_timeout_ms: 5000
-  stall_timeout_ms: 900000
+  stall_timeout_ms: 120000
 server:
   port: 4567
 ---
